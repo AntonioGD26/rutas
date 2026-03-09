@@ -154,6 +154,7 @@ def show_dashboard():
         c.sucursal_atencion AS sucursal,
         v.estatus,
         v.fecha_solicitud,
+        v.fecha_atencion,
         (CURRENT_DATE - v.fecha_solicitud) AS dias
     FROM visitas v
     JOIN tickets t ON v.id_ticket = t.id_ticket
@@ -170,9 +171,12 @@ def show_dashboard():
 
     if data_pendientes:
         df_pendientes = pd.DataFrame(data_pendientes)
+        df_pendientes['fecha_compromiso'] = df_pendientes['fecha_atencion'].apply(
+            lambda x: x.strftime('%Y-%m-%d') if pd.notnull(x) else 'Pendiente de programar'
+        )
         st.caption(f"Total de visitas pendientes con más de 3 días: {len(df_pendientes)}")
         st.dataframe(
-            df_pendientes,
+            df_pendientes[['ticket', 'equipo', 'cliente', 'sucursal', 'estatus', 'fecha_solicitud', 'fecha_compromiso', 'dias']],
             column_config={
                 "ticket": "Ticket",
                 "equipo": "Equipo",
@@ -180,6 +184,7 @@ def show_dashboard():
                 "sucursal": "Sucursal",
                 "estatus": "Estatus",
                 "fecha_solicitud": st.column_config.DateColumn("Fecha Solicitud"),
+                "fecha_compromiso": "Fecha Compromiso",
                 "dias": "Días"
             },
             hide_index=True,
