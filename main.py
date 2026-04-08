@@ -3,10 +3,7 @@ from datetime import datetime
 from db import db
 from auth import verify_password
 from modulos.dashboard import show_dashboard
-from modulos.tickets import show_tickets
-from modulos.servicios import show_servicios
-from modulos.metricas import show_metricas
-from modulos.agregar_equipo import show_agregar_equipo
+from modulos.operacion import show_operacion
 
 # Configuración de la página
 st.set_page_config(
@@ -22,15 +19,12 @@ if 'authenticated' not in st.session_state:
 if 'user' not in st.session_state:
     st.session_state.user = None
 if 'page' not in st.session_state:
-    st.session_state.page = "Dashboard"
-if 'zona_seleccionada' not in st.session_state:
-    st.session_state.zona_seleccionada = None
-if 'sucursal_seleccionada' not in st.session_state:
-    st.session_state.sucursal_seleccionada = None
-if 'filtro_zona' not in st.session_state:
-    st.session_state.filtro_zona = "Todas"
-if 'filtro_sucursal' not in st.session_state:
-    st.session_state.filtro_sucursal = "Todas"
+    st.session_state.page = "➡️ Dashboard"
+
+# Migración: si la página guardada ya no existe, resetear a Dashboard
+menu_options = ["➡️ Dashboard", "🛠️ Operación"]
+if st.session_state.page not in menu_options:
+    st.session_state.page = "➡️ Dashboard"
 
 # CSS personalizado (se mantiene igual)
 st.markdown("""
@@ -124,9 +118,6 @@ if not st.session_state.authenticated:
 with st.sidebar:
     st.title("🔧 Navegación")
 
-    # Opciones del menú (con iconos)
-    menu_options = ["➡️ Dashboard", "🎫 Tickets", "🔧 Servicios", "📈 Métricas", "➕ Agregar Equipo"]
-    
     # Selectbox para navegación automática
     selected_page = st.selectbox(
         "Seleccionar página",
@@ -156,15 +147,9 @@ with st.sidebar:
 # Enrutamiento a las páginas según la selección
 if st.session_state.page == "➡️ Dashboard":
     show_dashboard()
-elif st.session_state.page == "🎫 Tickets":
-    show_tickets()
-elif st.session_state.page == "🔧 Servicios":
-    show_servicios()
-elif st.session_state.page == "📈 Métricas":
-    show_metricas()
-elif st.session_state.page == "➕ Agregar Equipo":
-    show_agregar_equipo()
+elif st.session_state.page == "🛠️ Operación":
+    show_operacion()
 
-# Footer (opcional, puedes ponerlo aquí o dentro de cada página)
+# Footer
 st.divider()
-st.caption(f"© {datetime.now().year} Sistema de Gestión de Visitas Técnicas | Versión 1.0")
+st.caption(f"© {datetime.now().year} Sistema de Gestión de Visitas Técnicas | Versión 2.0")
