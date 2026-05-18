@@ -89,7 +89,7 @@ if not st.session_state.authenticated:
         password = st.text_input("Contraseña", type="password")
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
-            submitted = st.form_submit_button("Iniciar Sesión", use_container_width=True, type="primary")
+            submitted = st.form_submit_button("Iniciar Sesión", width="stretch", type="primary")
 
     if submitted:
         if not username or not password:
@@ -138,7 +138,7 @@ with st.sidebar:
     st.write(f"👤 Usuario: {st.session_state.user['nombre'] or st.session_state.user['username']}")
     st.write(f"📋 Rol: {st.session_state.user['rol']}")
     
-    if st.button("🚪 Cerrar Sesión", use_container_width=True):
+    if st.button("🚪 Cerrar Sesión", width="stretch"):
         st.session_state.authenticated = False
         st.session_state.user = None
         st.rerun()

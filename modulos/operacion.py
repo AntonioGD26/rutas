@@ -10,12 +10,13 @@ def _show_tickets():
     """Contenido de la pestaña de Tickets (modificado según actualización 07-04)."""
 
     # Sub-tabs de Tickets: se eliminó "Cerrados", se dividió "Sin Visitas" en dos
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "📝 Crear Ticket",
         "📋 Tickets abiertos sin visitas",
         "📋 Tickets con seguimiento pendiente",
         "📅 Con Visitas",
-        "🔒 Cerrar Ticket"
+        "🔒 Cerrar Ticket",
+        "📊 Todos los Tickets"
     ])
 
     with tab1:
@@ -45,7 +46,7 @@ def _show_tickets():
 
             col1, col2, col3 = st.columns([1, 2, 1])
             with col2:
-                submit = st.form_submit_button("📋 Crear Ticket", use_container_width=True, type="primary")
+                submit = st.form_submit_button("📋 Crear Ticket", width="stretch", type="primary")
 
             if submit:
                 if not all([numero_ticket, id_equipo, fecha_alta]):
@@ -117,7 +118,7 @@ def _show_tickets():
             st.dataframe(
                 df_sin_visitas[['numero_ticket', 'id_equipo', 'nombre_cliente',
                                'sucursal_atencion', 'zona', 'fecha_alta', 'dias_transcurridos', 'prioridad']],
-                use_container_width=True, hide_index=True,
+                width="stretch", hide_index=True,
                 column_config={
                     'numero_ticket': 'Ticket', 'id_equipo': 'Equipo',
                     'nombre_cliente': 'Cliente', 'sucursal_atencion': 'Sucursal',
@@ -174,7 +175,7 @@ def _show_tickets():
                 df_seg[['numero_ticket', 'id_equipo', 'nombre_cliente', 'sucursal_atencion',
                         'fecha_alta', 'ultima_fecha_solicitud', 'ultima_fecha_atencion',
                         'estatus_ultima_visita', 'comentarios_ultima_visita']],
-                use_container_width=True, hide_index=True,
+                width="stretch", hide_index=True,
                 column_config={
                     'numero_ticket': 'Ticket', 'id_equipo': 'Equipo',
                     'nombre_cliente': 'Cliente', 'sucursal_atencion': 'Sucursal',
@@ -239,7 +240,7 @@ def _show_tickets():
                 df_con_visitas[['numero_ticket', 'id_equipo', 'nombre_cliente',
                                'sucursal_atencion', 'cantidad_visitas', 'visitas_fallidas',
                                'dias_transcurridos', 'prioridad']],
-                use_container_width=True, hide_index=True,
+                width="stretch", hide_index=True,
                 column_config={
                     'numero_ticket': 'Ticket', 'id_equipo': 'Equipo',
                     'nombre_cliente': 'Cliente', 'sucursal_atencion': 'Sucursal',
@@ -281,7 +282,7 @@ def _show_tickets():
                 )
 
                 # Botón "Cargar Información del Ticket" — misma mecánica que Servicios
-                if st.form_submit_button("📋 Cargar Información del Ticket", use_container_width=True):
+                if st.form_submit_button("📋 Cargar Información del Ticket", width="stretch"):
                     if ticket_seleccionado:
                         numero_ticket_seleccionado = ticket_seleccionado.split(" - ")[0]
                         ticket_info = next((t for t in tickets_abiertos if t['numero_ticket'] == numero_ticket_seleccionado), None)
@@ -309,7 +310,7 @@ def _show_tickets():
 
                     col1, col2, col3 = st.columns([1, 2, 1])
                     with col2:
-                        submit_cierre = st.form_submit_button("🔒 Cerrar Ticket", use_container_width=True, type="primary")
+                        submit_cierre = st.form_submit_button("🔒 Cerrar Ticket", width="stretch", type="primary")
 
                     if submit_cierre:
                         if not fecha_cierre:
@@ -335,6 +336,228 @@ def _show_tickets():
                     st.warning("⚠️ Seleccione un ticket y haga clic en 'Cargar Información del Ticket' para continuar")
         else:
             st.info("✅ No hay tickets abiertos para cerrar")
+
+    with tab6:
+        _show_todos_tickets()
+
+
+def _show_todos_tickets():
+    """Sub-tab que muestra una tabla con todos los tickets creados, con filtros y estatus derivado."""
+
+    st.subheader("📊 Todos los Tickets")
+
+    # --- Query: traer todos los tickets con info de última visita ---
+    query_todos = """
+    SELECT 
+        t.id_ticket,
+        t.numero_ticket,
+        t.id_equipo,
+        c.nombre_cliente,
+        t.estatus_ticket,
+        t.cantidad_visitas,
+        t.visitas_fallidas,
+        c.sucursal_atencion,
+        c.zona,
+        t.fecha_alta,
+        t.fecha_cierre,
+        uv.estatus AS estatus_ultima_visita,
+        uv.fecha_solicitud AS ultima_fecha_solicitud,
+        uv.fecha_atencion AS ultima_fecha_atencion
+    FROM tickets t
+    JOIN catalogo_equipos c ON t.id_equipo = c.id_equipo
+    LEFT JOIN LATERAL (
+        SELECT v.estatus, v.fecha_solicitud, v.fecha_atencion
+        FROM visitas v
+        WHERE v.id_ticket = t.id_ticket
+        ORDER BY v.id_visita DESC
+        LIMIT 1
+    ) uv ON true
+    ORDER BY t.fecha_alta DESC;
+    """
+    data_todos = db.execute_query(query_todos)
+
+    if not data_todos:
+        st.info("ℹ️ No hay tickets registrados.")
+        return
+
+    df = pd.DataFrame(data_todos)
+
+    # --- Calcular estatus derivado según reglas de negocio ---
+    def _calcular_estatus(row):
+        if row['estatus_ticket'] == 'Cerrado':
+            return 'Cerrado'
+        # Ticket abierto (incluye 'Abierto' y 'Programado' del sistema)
+        est_uv = row.get('estatus_ultima_visita')
+        if pd.isna(est_uv) or est_uv is None:
+            return 'Sin visitas'
+        if est_uv in ('Efectivo', 'Fallido', 'Cancelado'):
+            return 'Sin visitas pendientes'
+        if est_uv == 'Sin programar':
+            fecha_sol = row.get('ultima_fecha_solicitud')
+            fecha_str = str(fecha_sol) if fecha_sol else ''
+            return f'Sin programar: {fecha_str}'
+        if est_uv == 'Programado':
+            fecha_at = row.get('ultima_fecha_atencion')
+            fecha_str = str(fecha_at) if fecha_at else ''
+            return f'Programado: {fecha_str}'
+        # Cualquier otro caso (ej: Sin Respuesta) se trata como sin visitas pendientes
+        return 'Sin visitas pendientes'
+
+    df['estatus_derivado'] = df.apply(_calcular_estatus, axis=1)
+
+    # --- Calcular días abierto ---
+    df['fecha_alta'] = pd.to_datetime(df['fecha_alta'])
+    df['fecha_cierre'] = pd.to_datetime(df['fecha_cierre'])
+    today = pd.Timestamp.now().normalize()
+    df['dias_abierto'] = df.apply(
+        lambda r: (r['fecha_cierre'] - r['fecha_alta']).days if pd.notna(r['fecha_cierre']) else (today - r['fecha_alta']).days,
+        axis=1
+    )
+
+    # --- Categoría base de estatus (para filtro) ---
+    def _categoria_estatus(val):
+        if val == 'Cerrado':
+            return 'Cerrado'
+        if val == 'Sin visitas':
+            return 'Sin visitas'
+        if val == 'Sin visitas pendientes':
+            return 'Sin visitas pendientes'
+        if val.startswith('Sin programar'):
+            return 'Sin programar'
+        if val.startswith('Programado'):
+            return 'Programado'
+        return val
+
+    df['categoria_estatus'] = df['estatus_derivado'].apply(_categoria_estatus)
+
+    # --- FILTROS ---
+    st.markdown("#### 🔍 Filtros")
+    col_f1, col_f2, col_f3, col_f4, col_f5 = st.columns(5)
+
+    with col_f1:
+        categorias_disponibles = sorted(df['categoria_estatus'].unique().tolist())
+        filtro_estatus = st.multiselect(
+            "Estatus", categorias_disponibles,
+            default=categorias_disponibles,
+            key="filtro_todos_estatus"
+        )
+
+    with col_f2:
+        min_date = df['fecha_alta'].min().date()
+        max_date = today.date()
+        filtro_fecha = st.date_input(
+            "Rango de fechas (Alta)",
+            value=(min_date, max_date),
+            min_value=min_date,
+            max_value=max_date,
+            key="filtro_todos_fechas"
+        )
+
+    with col_f3:
+        clientes_disponibles = sorted(df['nombre_cliente'].dropna().unique().tolist())
+        filtro_clientes = st.multiselect(
+            "Cliente", clientes_disponibles,
+            default=[],
+            key="filtro_todos_clientes",
+            placeholder="Todos"
+        )
+
+    with col_f4:
+        sucursales_disponibles = sorted(df['sucursal_atencion'].dropna().unique().tolist())
+        filtro_sucursal = st.multiselect(
+            "Sucursal", sucursales_disponibles,
+            default=[],
+            key="filtro_todos_sucursal",
+            placeholder="Todas"
+        )
+
+    with col_f5:
+        zonas_disponibles = sorted(df['zona'].dropna().unique().tolist())
+        filtro_zona = st.multiselect(
+            "Zona", zonas_disponibles,
+            default=[],
+            key="filtro_todos_zona",
+            placeholder="Todas"
+        )
+
+    # --- Aplicar filtros ---
+    df_filtrado = df.copy()
+
+    # Filtro estatus
+    if filtro_estatus:
+        df_filtrado = df_filtrado[df_filtrado['categoria_estatus'].isin(filtro_estatus)]
+
+    # Filtro fechas
+    if isinstance(filtro_fecha, (list, tuple)) and len(filtro_fecha) == 2:
+        fecha_inicio, fecha_fin = filtro_fecha
+        df_filtrado = df_filtrado[
+            (df_filtrado['fecha_alta'].dt.date >= fecha_inicio) &
+            (df_filtrado['fecha_alta'].dt.date <= fecha_fin)
+        ]
+
+    # Filtro clientes
+    if filtro_clientes:
+        df_filtrado = df_filtrado[df_filtrado['nombre_cliente'].isin(filtro_clientes)]
+
+    # Filtro sucursal
+    if filtro_sucursal:
+        df_filtrado = df_filtrado[df_filtrado['sucursal_atencion'].isin(filtro_sucursal)]
+
+    # Filtro zona
+    if filtro_zona:
+        df_filtrado = df_filtrado[df_filtrado['zona'].isin(filtro_zona)]
+
+    # --- Métricas rápidas ---
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Tickets", len(df_filtrado))
+    with col2:
+        abiertos = len(df_filtrado[df_filtrado['estatus_ticket'] != 'Cerrado'])
+        st.metric("Abiertos", abiertos)
+    with col3:
+        cerrados = len(df_filtrado[df_filtrado['estatus_ticket'] == 'Cerrado'])
+        st.metric("Cerrados", cerrados)
+    with col4:
+        dias_promedio = df_filtrado['dias_abierto'].mean() if len(df_filtrado) > 0 else 0
+        st.metric("Días Promedio", f"{dias_promedio:.1f}")
+
+    # --- Tabla ---
+    if len(df_filtrado) > 0:
+        df_mostrar = df_filtrado[[
+            'numero_ticket', 'id_equipo', 'nombre_cliente', 'estatus_derivado',
+            'cantidad_visitas', 'visitas_fallidas', 'sucursal_atencion', 'zona', 'dias_abierto'
+        ]].copy()
+        df_mostrar['fecha_alta_fmt'] = df_filtrado['fecha_alta'].dt.strftime('%Y-%m-%d')
+
+        st.dataframe(
+            df_mostrar,
+            width="stretch", hide_index=True,
+            column_config={
+                'numero_ticket': 'Ticket',
+                'id_equipo': 'ID Equipo',
+                'nombre_cliente': 'Cliente',
+                'estatus_derivado': 'Estatus',
+                'cantidad_visitas': '# Visitas',
+                'visitas_fallidas': '# Fallidas',
+                'sucursal_atencion': 'Sucursal',
+                'zona': 'Zona',
+                'dias_abierto': 'Días Abierto',
+                'fecha_alta_fmt': 'Fecha Alta'
+            }
+        )
+
+        # --- Exportar a CSV ---
+        csv_buffer = io.StringIO()
+        df_mostrar.to_csv(csv_buffer, index=False)
+        st.download_button(
+            "📥 Descargar CSV",
+            csv_buffer.getvalue(),
+            file_name="todos_los_tickets.csv",
+            mime="text/csv",
+            key="download_todos_tickets"
+        )
+    else:
+        st.info("ℹ️ No se encontraron tickets con los filtros seleccionados.")
 
 
 def _show_servicios():
@@ -370,7 +593,7 @@ def _show_servicios():
                     help="Seleccione un ticket en estado 'Abierto' para crear una visita",
                     key="crear_visita_selectbox"
                 )
-                if st.form_submit_button("📋 Cargar Información del Ticket", use_container_width=True):
+                if st.form_submit_button("📋 Cargar Información del Ticket", width="stretch"):
                     if ticket_seleccionado:
                         numero_ticket_seleccionado = ticket_seleccionado.split(" - ")[0]
                         ticket_info = next((t for t in tickets_abiertos if t['numero_ticket'] == numero_ticket_seleccionado), None)
@@ -395,7 +618,7 @@ def _show_servicios():
                     )
                     col1, col2, col3 = st.columns([1, 2, 1])
                     with col2:
-                        submit_visita = st.form_submit_button("➕ Crear Visita", use_container_width=True, type="primary")
+                        submit_visita = st.form_submit_button("➕ Crear Visita", width="stretch", type="primary")
                     if submit_visita:
                         if not fecha_solicitud:
                             st.error("❌ Por favor especifique la fecha de solicitud")
@@ -452,7 +675,7 @@ def _show_servicios():
                     help="Seleccione una visita en estado 'Sin programar' para programar",
                     key="programar_visita_selectbox"
                 )
-                if st.form_submit_button("📋 Cargar Información de la Visita", use_container_width=True):
+                if st.form_submit_button("📋 Cargar Información de la Visita", width="stretch"):
                     if visita_seleccionada:
                         visita_info = mapa_visitas.get(visita_seleccionada)
                         if visita_info:
@@ -480,7 +703,7 @@ def _show_servicios():
                         fecha_atencion = st.date_input("Fecha de Atención*", value=datetime.now() + timedelta(days=1), key="fecha_atencion_programar")
                     col1, col2, col3 = st.columns([1, 2, 1])
                     with col2:
-                        submit_programar = st.form_submit_button("📅 Programar Visita", use_container_width=True, type="primary")
+                        submit_programar = st.form_submit_button("📅 Programar Visita", width="stretch", type="primary")
                     if submit_programar:
                         if not fecha_respuesta or not fecha_atencion:
                             st.error("❌ Por favor complete todos los campos")
@@ -542,7 +765,7 @@ def _show_servicios():
                     help="Seleccione una visita en estado 'Programado' para cerrar",
                     key="cerrar_visita_selectbox"
                 )
-                if st.form_submit_button("📋 Cargar Información de la Visita", use_container_width=True):
+                if st.form_submit_button("📋 Cargar Información de la Visita", width="stretch"):
                     if visita_seleccionada:
                         visita_info = mapa_visitas.get(visita_seleccionada)
                         if visita_info:
@@ -577,7 +800,7 @@ def _show_servicios():
                     )
                     col1, col2, col3 = st.columns([1, 2, 1])
                     with col2:
-                        submit_cierre = st.form_submit_button("✅ Cerrar Visita", use_container_width=True, type="primary")
+                        submit_cierre = st.form_submit_button("✅ Cerrar Visita", width="stretch", type="primary")
                     if submit_cierre:
                         if not estatus_final:
                             st.error("❌ Por favor especifique el estatus final")
@@ -652,7 +875,7 @@ def _show_servicios():
             st.dataframe(
                 df_sin_programar[['folio', 'numero_ticket', 'id_equipo', 'nombre_cliente',
                                  'sucursal_atencion', 'fecha_solicitud', 'dias_desde_solicitud', 'prioridad']],
-                use_container_width=True, hide_index=True,
+                width="stretch", hide_index=True,
                 column_config={
                     'folio': 'Folio', 'numero_ticket': 'Ticket', 'id_equipo': 'Equipo',
                     'nombre_cliente': 'Cliente', 'sucursal_atencion': 'Sucursal',
@@ -713,7 +936,7 @@ def _show_servicios():
             st.dataframe(
                 df_hoy[['folio', 'numero_ticket', 'id_equipo', 'nombre_cliente',
                        'sucursal_atencion', 'fecha_atencion', 'prioridad']],
-                use_container_width=True, hide_index=True,
+                width="stretch", hide_index=True,
                 column_config={
                     'folio': 'Folio', 'numero_ticket': 'Ticket', 'id_equipo': 'Equipo',
                     'nombre_cliente': 'Cliente', 'sucursal_atencion': 'Sucursal',
@@ -772,7 +995,7 @@ def _show_servicios():
             st.dataframe(
                 df_programadas[['folio', 'numero_ticket', 'id_equipo', 'nombre_cliente',
                                'sucursal_atencion', 'fecha_atencion', 'dias_para_atencion', 'prioridad']],
-                use_container_width=True, hide_index=True,
+                width="stretch", hide_index=True,
                 column_config={
                     'folio': 'Folio', 'numero_ticket': 'Ticket', 'id_equipo': 'Equipo',
                     'nombre_cliente': 'Cliente', 'sucursal_atencion': 'Sucursal',
@@ -830,7 +1053,7 @@ def _show_servicios():
             st.dataframe(
                 df_pendientes[['folio', 'numero_ticket', 'id_equipo', 'nombre_cliente',
                               'sucursal_atencion', 'fecha_atencion', 'dias_desde_atencion', 'prioridad']],
-                use_container_width=True, hide_index=True,
+                width="stretch", hide_index=True,
                 column_config={
                     'folio': 'Folio', 'numero_ticket': 'Ticket', 'id_equipo': 'Equipo',
                     'nombre_cliente': 'Cliente', 'sucursal_atencion': 'Sucursal',
@@ -840,6 +1063,7 @@ def _show_servicios():
             )
         else:
             st.info("✅ No hay visitas pendientes de cierre")
+
 
 
 def _show_agregar_equipo():
@@ -871,7 +1095,7 @@ def _show_agregar_equipo():
                 sucursal_atencion = st.text_input("Sucursal de Atención*", placeholder="Ej: Sucursal Centro")
                 zona_auto = st.selectbox("Zona*", ["SUR", "CENTRO", "VALLE", "BAJIO", "NORTE", "NOROESTE"])
 
-        submit = st.form_submit_button("➕ Agregar Equipo", use_container_width=True, type="primary")
+        submit = st.form_submit_button("➕ Agregar Equipo", width="stretch", type="primary")
 
         if submit:
             zona_final = zona_auto if sucursales_nombres else zona_auto

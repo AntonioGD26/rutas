@@ -309,7 +309,7 @@ def show_dashboard():
                 ))
             fig_volumen.update_layout(title=f'Visitas por Zona - {titulo_periodo}', barmode='stack',
                                       xaxis_title="Zona", yaxis_title="Número de Visitas", height=400)
-            st.plotly_chart(fig_volumen, use_container_width=True)
+            st.plotly_chart(fig_volumen, width="stretch")
             figuras_pdf.append(("Volumen de Visitas por Zona", fig_volumen))
 
         with tab_z2:
@@ -323,7 +323,7 @@ def show_dashboard():
                 text=df_zonas['efectividad'].apply(lambda x: f'{x:.1f}%')
             )
             fig_efectividad.update_layout(xaxis_title="Zona", yaxis_title="Efectividad (%)", height=400, yaxis_range=[0, 100])
-            st.plotly_chart(fig_efectividad, use_container_width=True)
+            st.plotly_chart(fig_efectividad, width="stretch")
             figuras_pdf.append(("Efectividad por Zona", fig_efectividad))
 
         with tab_z3:
@@ -340,7 +340,7 @@ def show_dashboard():
             ))
             fig_tiempos.update_layout(title=f'Tiempos Promedio por Zona - {titulo_periodo}',
                                       xaxis_title="Zona", yaxis_title="Días Promedio", height=400, barmode='group')
-            st.plotly_chart(fig_tiempos, use_container_width=True)
+            st.plotly_chart(fig_tiempos, width="stretch")
             figuras_pdf.append(("Tiempos Promedio por Zona", fig_tiempos))
 
         with tab_z4:
@@ -394,7 +394,7 @@ def show_dashboard():
                     ))
                     fig_gestion.update_layout(title=f'Promedio de días por tipo de gestión - {titulo_periodo}',
                                               xaxis_title="Zona", yaxis_title="Días Promedio", height=400, barmode='group')
-                    st.plotly_chart(fig_gestion, use_container_width=True)
+                    st.plotly_chart(fig_gestion, width="stretch")
                     figuras_pdf.append(("Gestión por Zona", fig_gestion))
                 else:
                     st.info("No hay datos de gestión general disponibles")
@@ -422,7 +422,7 @@ def show_dashboard():
                     'tiempo_respuesta_prom': 'Respuesta Prom. (días)',
                     'tiempo_atencion_prom': 'Atención Prom. (días)',
                 },
-                hide_index=True, use_container_width=True
+                hide_index=True, width="stretch"
             )
 
     # =============================================
@@ -479,7 +479,7 @@ def show_dashboard():
                 fig_vol_suc.update_layout(title=f'Visitas por Sucursal - {titulo_periodo}', barmode='stack',
                                           xaxis_title="Sucursal", yaxis_title="Número de Visitas", height=400)
                 fig_vol_suc.update_xaxes(tickangle=45)
-                st.plotly_chart(fig_vol_suc, use_container_width=True)
+                st.plotly_chart(fig_vol_suc, width="stretch")
                 figuras_pdf.append(("Volumen de Visitas por Sucursal", fig_vol_suc))
 
             with tab_s2:
@@ -495,7 +495,7 @@ def show_dashboard():
                 )
                 fig_ef_suc.update_layout(xaxis_title="Sucursal", yaxis_title="Efectividad (%)", height=400, yaxis_range=[0, 100])
                 fig_ef_suc.update_xaxes(tickangle=45)
-                st.plotly_chart(fig_ef_suc, use_container_width=True)
+                st.plotly_chart(fig_ef_suc, width="stretch")
                 figuras_pdf.append(("Efectividad por Sucursal", fig_ef_suc))
 
             with tab_s3:
@@ -515,7 +515,7 @@ def show_dashboard():
                 fig_t_suc.update_layout(title=f'Tiempos Promedio por Sucursal - {titulo_periodo}',
                                         xaxis_title="Sucursal", yaxis_title="Días Promedio", height=400, barmode='group')
                 fig_t_suc.update_xaxes(tickangle=45)
-                st.plotly_chart(fig_t_suc, use_container_width=True)
+                st.plotly_chart(fig_t_suc, width="stretch")
                 figuras_pdf.append(("Tiempos Promedio por Sucursal", fig_t_suc))
 
             with tab_s4:
@@ -570,7 +570,7 @@ def show_dashboard():
                         fig_gest_suc.update_layout(title=f'Gestión por Sucursal - {titulo_periodo}',
                                                     xaxis_title="Sucursal", yaxis_title="Días Promedio", height=400, barmode='group')
                         fig_gest_suc.update_xaxes(tickangle=45)
-                        st.plotly_chart(fig_gest_suc, use_container_width=True)
+                        st.plotly_chart(fig_gest_suc, width="stretch")
                         figuras_pdf.append(("Gestión por Sucursal", fig_gest_suc))
                     else:
                         st.info("No hay datos de gestión por sucursal disponibles")
@@ -599,7 +599,7 @@ def show_dashboard():
                         'tiempo_atencion_prom': 'Atención Prom. (días)',
                         'clientes_unicos': 'Clientes Únicos'
                     },
-                    hide_index=True, use_container_width=True
+                    hide_index=True, width="stretch"
                 )
         else:
             st.info(f"No hay datos de sucursales para la zona {zona_seleccionada}")
@@ -644,10 +644,10 @@ def show_dashboard():
                     'fecha_solicitud': 'Fecha Solicitud', 'fecha_atencion': 'Fecha Atención',
                     'dias_atencion': 'Días de Atención'
                 },
-                hide_index=True, use_container_width=True
+                hide_index=True, width="stretch"
             )
 
-    if st.button("📄 Generar Reporte PDF", type="primary", use_container_width=True):
+    if st.button("📄 Generar Reporte PDF", type="primary", width="stretch"):
         with st.spinner("Generando reporte PDF..."):
             try:
                 pdf_buffer = _generar_pdf(
@@ -659,7 +659,7 @@ def show_dashboard():
                     data=pdf_buffer,
                     file_name=f"reporte_metricas_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
                     mime="application/pdf",
-                    use_container_width=True
+                    width="stretch"
                 )
                 st.success("✅ Reporte PDF generado exitosamente!")
             except Exception as e:
